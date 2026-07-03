@@ -1,0 +1,86 @@
+#include <Wire.h>
+#include "MAX30105.h"
+#include "heartRate.h"
+
+MAX30105 particleSensor;
+
+const byte RATE_SIZE = 4;
+byte rates[RATE_SIZE];
+byte rateSpot = 0;
+long lastBeat = 0;
+float beatsPerMinute;
+int beatAvg = 0;
+
+const int PUMP_PIN = 3;
+const long irThreshold = 10000;
+
+void setup() {
+  Serial.begin(115200);
+  pinMode(PUMP_PIN, OUTPUT);
+  analogWrite(PUMP_PIN, 0);
+
+  if (!particleSensor.begin(Wire, I2C_SPEED_FAST)) {
+    Serial.println("MAX30102 NOT FOUND!");
+    while (1);
+  }
+
+  Serial.println("Sensor ready!");
+
+  byte ledBrightness = 80;
+  byte sampleAverage = 4;
+  byte ledMode = 2;
+  byte sampleRate = 200;
+  int pulseWidth = 411;
+  int adcRange = 16384;
+
+  particleSensor.setup(ledBrightness, sampleAverage, ledMode, sampleRate, pulseWidth, adcRange);
+}
+
+void loop() {
+  long irValue = particleSensor.getIR();
+
+  if (irValue < irThreshold) {
+    // No finger — pump OFF and reset
+    analogWrite(PUMP_PIN, 0);
+    beatAvg = 0;
+    beatsPerMinute = 0;
+    rateSpot = 0;
+    for (byte x = 0; x < RATE_SIZE; x++) rates[x] = 0;
+    Serial.println("No finger — pump OFF");
+    delay(500);
+    return;
+  }
+
+  // Finger detected
+  if (checkForBeat(irValue) == true) {
+    long delta = millis() - lastBeat;
+    lastBeat = millis();
+    beatsPerMinute = 60 / (delta / 1000.0);
+
+    if (beatsPerMinute < 255 && beatsPerMinute > 20) {
+      rates[rateSpot++] = (byte)beatsPerMinute;
+      rateSpot %= RATE_SIZE;
+      beatAvg = 0;
+      for (byte x = 0; x < RATE_SIZE; x++)
+        beatAvg += rates[x];
+      beatAvg /= RATE_SIZE;
+
+      Serial.print("BPM=");
+      Serial.print(beatAvg);
+    }
+  }
+
+  // Run pump only if valid BPM
+  if (beatAvg > 0) {
+    int pumpSpeed = map(beatAvg, 40, 180, 80, 255);
+    pumpSpeed = constrain(pumpSpeed, 80, 255);
+    analogWrite(PUMP_PIN, pumpSpeed);
+    Serial.print("  Pump speed=");
+    Serial.println(map(beatAvg, 40, 180, 80, 255));
+  } else {
+    analogWrite(PUMP_PIN, 0);
+    Serial.println("  Waiting for BPM...");
+  }
+
+  delay(20);
+}
