@@ -149,4 +149,6 @@ MIT License — free to use and modify for educational purposes.
 
 ## 🙏 Acknowledgements
 
-Built as a fashion design college project combining wearable technology and haute couture. Special thanks to the fashion design team for the dress construction.
+Built as a collaboration project of Dept of ECE, SOET CMR UNIVERSITY and School of fashion designing , SOD CMR UNIVERSITY
+
+
